@@ -1,0 +1,1 @@
+C:\traework\aether\target\x86_64-unknown-none\release\init_domain: C:\traework\aether\guests\init_domain\build.rs C:\traework\aether\guests\init_domain/link.x C:\traework\aether\guests\init_domain\src\main.rs

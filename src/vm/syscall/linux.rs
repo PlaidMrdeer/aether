@@ -1,5 +1,6 @@
 use crate::arch::x86_64::vmx::GuestRegisters;
 use crate::vm::hypercall::utils::{copy_guest_gpa_bytes, copy_bytes_to_guest_gpa};
+use crate::vm::fs::{get_vfs, OpenFlags, FileMode, SeekFrom, Stat};
 use super::SyscallHandler;
 
 const SYS_READ: u64 = 0;
@@ -19,6 +20,7 @@ const SYS_SCHED_YIELD: u64 = 24;
 const SYS_GETPID: u64 = 39;
 const SYS_CLONE: u64 = 56;
 const SYS_FORK: u64 = 57;
+const SYS_VFORK: u64 = 58;
 const SYS_EXECVE: u64 = 59;
 const SYS_EXIT: u64 = 60;
 const SYS_WAIT4: u64 = 61;
@@ -45,6 +47,7 @@ const SYS_FCHOWN: u64 = 93;
 const SYS_LCHOWN: u64 = 94;
 const SYS_UMASK: u64 = 95;
 const SYS_GETTIMEOFDAY: u64 = 96;
+const SYS_TIME: u64 = 201;
 const SYS_GETRLIMIT: u64 = 97;
 const SYS_GETRUSAGE: u64 = 98;
 const SYS_SYSINFO: u64 = 99;
@@ -59,6 +62,7 @@ const SYS_SETPGID: u64 = 109;
 const SYS_GETPPID: u64 = 110;
 const SYS_GETPGRP: u64 = 111;
 const SYS_SETSID: u64 = 112;
+const SYS_GETPGID: u64 = 121;
 const SYS_ARCH_PRCTL: u64 = 158;
 const SYS_EXIT_GROUP: u64 = 231;
 const SYS_SET_TID_ADDRESS: u64 = 218;
@@ -68,7 +72,7 @@ const SYS_GET_ROBUST_LIST: u64 = 274;
 const SYS_PRCTL: u64 = 157;
 const SYS_GETRANDOM: u64 = 318;
 const SYS_CLOCK_GETTIME: u64 = 228;
-const SYS_NANOSLEEP: u64 = 230;
+const SYS_NANOSLEEP: u64 = 35;
 const SYS_POLL: u64 = 7;
 const SYS_SELECT: u64 = 23;
 const SYS_EPOLL_CREATE: u64 = 212;
@@ -79,6 +83,7 @@ const SYS_EVENTFD2: u64 = 290;
 const SYS_TIMERFD_CREATE: u64 = 283;
 const SYS_SIGNALFD: u64 = 282;
 const SYS_INOTIFY_INIT: u64 = 253;
+const SYS_INOTIFY_INIT1: u64 = 294;
 const SYS_INOTIFY_ADD_WATCH: u64 = 254;
 const SYS_INOTIFY_RM_WATCH: u64 = 255;
 const SYS_DUP: u64 = 32;
@@ -134,12 +139,12 @@ const SYS_MLOCK: u64 = 149;
 const SYS_MUNLOCK: u64 = 150;
 const SYS_MLOCKALL: u64 = 151;
 const SYS_MUNLOCKALL: u64 = 152;
-const SYS_MINCORE: u64 = 147;
-const SYS_MADVISE: u64 = 148;
-const SYS_MREMAP: u64 = 163;
+const SYS_MINCORE: u64 = 219;
+const SYS_MADVISE: u64 = 28;
+const SYS_MREMAP: u64 = 25;
 const SYS_FSYNC: u64 = 74;
 const SYS_FDATASYNC: u64 = 75;
-const SYS_MSYNC: u64 = 144;
+const SYS_MSYNC: u64 = 26;
 const SYS_FLOCK: u64 = 73;
 const SYS_FADVISE64: u64 = 221;
 const SYS_STAT: u64 = 4;
@@ -147,7 +152,6 @@ const SYS_LSTAT: u64 = 6;
 const SYS_STATFS: u64 = 137;
 const SYS_FSTATFS: u64 = 138;
 const SYS_GETDENTS: u64 = 78;
-const SYS_SETSID: u64 = 112;
 const SYS_GETSID: u64 = 124;
 const SYS_SETREUID: u64 = 113;
 const SYS_SETREGID: u64 = 114;
@@ -314,12 +318,93 @@ const SYS_USTAT: u64 = 136;
 const SYS_LOOP_CTL: u64 = 333;
 const SYS_LOOP_CONFIGURE: u64 = 334;
 
-const ENOSYS: i64 = -38;
-const EINVAL: i64 = -22;
-const ENOMEM: i64 = -12;
-const EBADF: i64 = -9;
-const EFAULT: i64 = -14;
-const ERANGE: i64 = -34;
+pub const ENOSYS: i64 = -38;
+pub const EINVAL: i64 = -22;
+pub const ENOMEM: i64 = -12;
+pub const EBADF: i64 = -9;
+pub const EFAULT: i64 = -14;
+pub const ERANGE: i64 = -34;
+pub const ENOENT: i64 = -2;
+pub const EISDIR: i64 = -21;
+pub const EAGAIN: i64 = -11;
+pub const ENFILE: i64 = -23;
+pub const EMFILE: i64 = -24;
+pub const ESPIPE: i64 = -29;
+pub const EEXIST: i64 = -17;
+pub const ENOTDIR: i64 = -20;
+pub const ENXIO: i64 = -6;
+pub const EPERM: i64 = -1;
+pub const EACCES: i64 = -13;
+pub const ETIMEDOUT: i64 = -110;
+pub const EINTR: i64 = -4;
+
+const SEEK_SET: i32 = 0;
+const SEEK_CUR: i32 = 1;
+const SEEK_END: i32 = 2;
+
+const PROT_NONE: u64 = 0x0;
+const PROT_READ: u64 = 0x1;
+const PROT_WRITE: u64 = 0x2;
+const PROT_EXEC: u64 = 0x4;
+
+const MAP_SHARED: u64 = 0x01;
+const MAP_PRIVATE: u64 = 0x02;
+const MAP_SHARED_VALIDATE: u64 = 0x03;
+const MAP_TYPE: u64 = 0x0f;
+const MAP_FIXED: u64 = 0x10;
+const MAP_ANONYMOUS: u64 = 0x20;
+const MAP_32BIT: u64 = 0x40;
+const MAP_GROWSDOWN: u64 = 0x0100;
+const MAP_DENYWRITE: u64 = 0x0800;
+const MAP_EXECUTABLE: u64 = 0x1000;
+const MAP_LOCKED: u64 = 0x2000;
+const MAP_NORESERVE: u64 = 0x4000;
+const MAP_POPULATE: u64 = 0x8000;
+const MAP_NONBLOCK: u64 = 0x10000;
+const MAP_STACK: u64 = 0x20000;
+const MAP_HUGETLB: u64 = 0x40000;
+const MAP_SYNC: u64 = 0x80000;
+const MAP_FIXED_NOREPLACE: u64 = 0x100000;
+
+const MREMAP_MAYMOVE: u64 = 1;
+const MREMAP_FIXED: u64 = 2;
+const MREMAP_DONTUNMAP: u64 = 4;
+
+const CLONE_VM: u64 = 0x00000100;
+const CLONE_FS: u64 = 0x00000200;
+const CLONE_FILES: u64 = 0x00000400;
+const CLONE_SIGHAND: u64 = 0x00000800;
+const CLONE_PIDFD: u64 = 0x00001000;
+const CLONE_PTRACE: u64 = 0x00002000;
+const CLONE_VFORK: u64 = 0x00004000;
+const CLONE_PARENT: u64 = 0x00008000;
+const CLONE_THREAD: u64 = 0x00010000;
+const CLONE_NEWNS: u64 = 0x00020000;
+const CLONE_SYSVSEM: u64 = 0x00040000;
+const CLONE_SETTLS: u64 = 0x00080000;
+const CLONE_PARENT_SETTID: u64 = 0x00100000;
+const CLONE_CHILD_CLEARTID: u64 = 0x00200000;
+const CLONE_DETACHED: u64 = 0x00400000;
+const CLONE_UNTRACED: u64 = 0x00800000;
+const CLONE_CHILD_SETTID: u64 = 0x01000000;
+const CLONE_NEWCGROUP: u64 = 0x02000000;
+const CLONE_NEWUTS: u64 = 0x04000000;
+const CLONE_NEWIPC: u64 = 0x08000000;
+const CLONE_NEWUSER: u64 = 0x10000000;
+const CLONE_NEWPID: u64 = 0x20000000;
+const CLONE_NEWNET: u64 = 0x40000000;
+const CLONE_IO: u64 = 0x80000000;
+
+const CLOCK_REALTIME: i32 = 0;
+const CLOCK_MONOTONIC: i32 = 1;
+const CLOCK_PROCESS_CPUTIME_ID: i32 = 2;
+const CLOCK_THREAD_CPUTIME_ID: i32 = 3;
+const CLOCK_MONOTONIC_RAW: i32 = 4;
+const CLOCK_REALTIME_COARSE: i32 = 5;
+const CLOCK_MONOTONIC_COARSE: i32 = 6;
+const CLOCK_BOOTTIME: i32 = 7;
+const CLOCK_REALTIME_ALARM: i32 = 8;
+const CLOCK_BOOTTIME_ALARM: i32 = 9;
 
 pub struct LinuxSyscallHandler;
 
@@ -349,7 +434,7 @@ impl SyscallHandler for LinuxSyscallHandler {
             SYS_EXIT | SYS_EXIT_GROUP => sys_exit(regs),
             SYS_SCHED_YIELD => sys_sched_yield(regs),
             SYS_FSTAT => sys_fstat(regs),
-            SYS_LSEEK => EINVAL as u64,
+            SYS_LSEEK => sys_lseek(regs),
             SYS_IOCTL => sys_ioctl(regs),
             SYS_ACCESS => sys_access(regs),
             SYS_GETCWD => sys_getcwd(regs),
@@ -383,9 +468,11 @@ impl SyscallHandler for LinuxSyscallHandler {
             SYS_GETRANDOM => sys_getrandom(regs),
             SYS_MEMFD_CREATE => 10,
             SYS_STATX | SYS_NEWFSTATAT | SYS_STAT | SYS_LSTAT | SYS_FSTAT => 0,
-            SYS_CLOCK_GETTIME | SYS_CLOCK_GETRES => 0,
-            SYS_NANOSLEEP | SYS_CLOCK_NANOSLEEP => 0,
-            SYS_GETTIMEOFDAY | SYS_TIME | SYS_TIMES | SYS_SYSINFO => 0,
+            SYS_CLOCK_GETTIME => sys_clock_gettime(regs),
+            SYS_CLOCK_GETRES => sys_clock_getres(regs),
+            SYS_NANOSLEEP | SYS_CLOCK_NANOSLEEP => sys_nanosleep(regs),
+            SYS_GETTIMEOFDAY => sys_gettimeofday(regs),
+            SYS_TIME | SYS_TIMES | SYS_SYSINFO => 0,
             SYS_GETRLIMIT | SYS_SETRLIMIT | SYS_GETRUSAGE => 0,
             SYS_UMASK => 0o022,
             SYS_CHMOD | SYS_FCHMOD | SYS_FCHMODAT => 0,
@@ -401,7 +488,7 @@ impl SyscallHandler for LinuxSyscallHandler {
             SYS_TRUNCATE | SYS_FTRUNCATE => 0,
             SYS_FSYNC | SYS_FDATASYNC | SYS_MSYNC => 0,
             SYS_FLOCK | SYS_MADVISE => 0,
-            SYS_MREMAP => ENOSYS as u64,
+            SYS_MREMAP => sys_mremap(regs),
             SYS_MLOCK | SYS_MUNLOCK | SYS_MLOCKALL | SYS_MUNLOCKALL | SYS_MINCORE => 0,
             SYS_READV | SYS_WRITEV | SYS_PREADV | SYS_PWRITEV | SYS_PREADV2 | SYS_PWRITEV2 => 0,
             SYS_PREAD64 | SYS_PWRITE64 => 0,
@@ -490,12 +577,103 @@ impl SyscallHandler for LinuxSyscallHandler {
     }
 }
 
+fn get_current_ept() -> Option<crate::memory::ept::EptManager> {
+    let mut mgr = crate::enclave::get_manager();
+    let manager = mgr.as_mut()?;
+    let cur = manager.current_id()?;
+    let enclave = manager.get_enclave_mut(cur)?;
+    Some(enclave.ept.clone())
+}
+
+fn read_string_from_guest(gpa: u64, max_len: usize) -> Option<alloc::string::String> {
+    let mut mgr = crate::enclave::get_manager();
+    let manager = mgr.as_mut()?;
+    let cur = manager.current_id()?;
+    let enclave = manager.get_enclave_mut(cur)?;
+    
+    let mut buf = [0u8; 256];
+    let mut result = alloc::string::String::new();
+    let mut offset = 0u64;
+    
+    loop {
+        let n = copy_guest_gpa_bytes(&enclave.ept, gpa + offset, &mut buf);
+        if n == 0 {
+            break;
+        }
+        
+        for i in 0..n {
+            if buf[i] == 0 {
+                return Some(result);
+            }
+            if buf[i].is_ascii_graphic() || buf[i] == b'/' || buf[i] == b'.' || buf[i] == b' ' || buf[i] == b'-' || buf[i] == b'_' {
+                result.push(buf[i] as char);
+            } else {
+                return None;
+            }
+        }
+        
+        offset += n as u64;
+        if result.len() >= max_len {
+            break;
+        }
+    }
+    
+    Some(result)
+}
+
 fn sys_read(regs: &mut GuestRegisters) -> u64 {
     let fd = regs.rdi as i32;
+    let buf_gpa = regs.rsi;
+    let count = regs.rdx as usize;
+
     if fd < 0 {
-        return EBADF as u64;
+        return (-EBADF) as u64;
     }
-    0
+    if count == 0 {
+        return 0;
+    }
+
+    let vfs = unsafe { get_vfs().as_mut() };
+    if vfs.is_none() {
+        return (-ENOENT) as u64;
+    }
+    let vfs = vfs.unwrap();
+
+    let mut mgr = crate::enclave::get_manager();
+    let manager = match mgr.as_mut() {
+        Some(m) => m,
+        None => return (-EFAULT) as u64,
+    };
+    let cur = match manager.current_id() {
+        Some(id) => id,
+        None => return (-EFAULT) as u64,
+    };
+    let enclave = match manager.get_enclave_mut(cur) {
+        Some(e) => e,
+        None => return (-EFAULT) as u64,
+    };
+
+    let mut chunk_buf = [0u8; 4096];
+    let mut total_read = 0usize;
+    let mut remaining = count;
+
+    while remaining > 0 {
+        let chunk = core::cmp::min(remaining, 4096);
+        match vfs.read(fd, &mut chunk_buf[..chunk], &enclave.ept) {
+            Ok(0) => break,
+            Ok(n) => {
+                copy_bytes_to_guest_gpa(&enclave.ept, buf_gpa + total_read as u64, &chunk_buf[..n]);
+                total_read += n;
+                remaining -= n;
+                if n < chunk {
+                    break;
+                }
+            }
+            Err(e) => return (-e) as u64,
+        }
+    }
+
+    total_read as u64
 }
 
 fn sys_write(regs: &mut GuestRegisters) -> u64 {
@@ -504,62 +682,100 @@ fn sys_write(regs: &mut GuestRegisters) -> u64 {
     let count = regs.rdx as usize;
 
     if fd < 0 {
-        return EBADF as u64;
+        return (-EBADF) as u64;
     }
     if count == 0 {
         return 0;
     }
 
+    let vfs = unsafe { get_vfs().as_mut() };
+    if vfs.is_none() {
+        return (-ENOENT) as u64;
+    }
+    let vfs = vfs.unwrap();
+
     let mut mgr = crate::enclave::get_manager();
     let manager = match mgr.as_mut() {
         Some(m) => m,
-        None => return EFAULT as u64,
+        None => return (-EFAULT) as u64,
     };
     let cur = match manager.current_id() {
         Some(id) => id,
-        None => return EFAULT as u64,
+        None => return (-EFAULT) as u64,
     };
     let enclave = match manager.get_enclave_mut(cur) {
         Some(e) => e,
-        None => return EFAULT as u64,
+        None => return (-EFAULT) as u64,
     };
 
-    let mut buf = [0u8; 512];
-    let mut offset = 0usize;
+    let mut chunk_buf = [0u8; 4096];
+    let mut total_written = 0usize;
     let mut remaining = count;
 
     while remaining > 0 {
-        let chunk = core::cmp::min(remaining, 512);
-        let n = copy_guest_gpa_bytes(&enclave.ept, buf_gpa + offset as u64, &mut buf[..chunk]);
+        let chunk = core::cmp::min(remaining, 4096);
+        let n = copy_guest_gpa_bytes(&enclave.ept, buf_gpa + total_written as u64, &mut chunk_buf[..chunk]);
         if n == 0 {
             break;
         }
         
-        if fd == 1 || fd == 2 {
-            for i in 0..n {
-                let c = buf[i];
-                if c == b'\n' || c == b'\r' || c == b'\t' || (c >= 0x20 && c < 0x7f) {
-                    crate::serial_print!("{}", c as char);
+        match vfs.write(fd, &chunk_buf[..n], &enclave.ept) {
+            Ok(written) => {
+                total_written += written;
+                remaining -= written;
+                if written < n {
+                    break;
                 }
             }
-        }
-        
-        offset += n;
-        remaining -= n;
-        if n < chunk {
-            break;
+            Err(e) => return (-e) as u64,
         }
     }
 
-    offset as u64
+    total_written as u64
 }
 
 fn sys_open(regs: &mut GuestRegisters) -> u64 {
-    ENOSYS as u64
+    let path_gpa = regs.rdi;
+    let flags_raw = regs.rsi as i32;
+    let mode_raw = regs.rdx as u32;
+
+    let path = match read_string_from_guest(path_gpa, 256) {
+        Some(p) => p,
+        None => return (-ENOENT) as u64,
+    };
+
+    let flags = match OpenFlags::from_bits(flags_raw & 0x00FF_FFFF) {
+        Some(f) => f,
+        None => return (-EINVAL) as u64,
+    };
+
+    let mode = FileMode::from_bits_truncate(mode_raw & 0o777);
+
+    let vfs = unsafe { get_vfs().as_mut() };
+    if vfs.is_none() {
+        return (-ENOENT) as u64;
+    }
+    let vfs = vfs.unwrap();
+
+    match vfs.open(&path, flags, mode) {
+        Ok(fd) => fd as u64,
+        Err(e) => (-e) as u64,
+    }
 }
 
 fn sys_close(regs: &mut GuestRegisters) -> u64 {
-    0
+    let fd = regs.rdi as i32;
+
+    let vfs = unsafe { get_vfs().as_mut() };
+    if vfs.is_none() {
+        return (-EBADF) as u64;
+    }
+    let vfs = vfs.unwrap();
+
+    match vfs.close(fd) {
+        Ok(()) => 0,
+        Err(e) => (-e) as u64,
+    }
 }
 
 fn sys_brk(regs: &mut GuestRegisters) -> u64 {
@@ -569,55 +785,221 @@ fn sys_brk(regs: &mut GuestRegisters) -> u64 {
             return BRK_CURRENT;
         }
         if addr >= 0x4000_0000 && addr < 0x8000_0000 {
+            if addr > BRK_CURRENT {
+                let mut mgr = crate::enclave::get_manager();
+                if let Some(manager) = mgr.as_mut() {
+                    if let Some(cur) = manager.current_id() {
+                        if let Some(enclave) = manager.get_enclave_mut(cur) {
+                            let start_gpa = (BRK_CURRENT + 0xFFF) & !0xFFF;
+                            let end_gpa = (addr + 0xFFF) & !0xFFF;
+                            let mut gpa = start_gpa;
+                            while gpa < end_gpa {
+                                if let Some(frame) = crate::memory::allocate_frame() {
+                                    let hpa = frame.start_address();
+                                    let flags = crate::memory::ept::EptFlags::READ 
+                                        | crate::memory::ept::EptFlags::WRITE
+                                        | crate::memory::ept::EptFlags::EXECUTE
+                                        | crate::memory::ept::EptFlags::MEMORY_TYPE_WB;
+                                    enclave.ept.map(x86_64::PhysAddr::new(gpa), hpa, flags);
+                                }
+                                gpa += 4096;
+                            }
+                        }
+                    }
+                }
+            }
             BRK_CURRENT = addr;
             return addr;
         }
     }
-    ENOMEM as u64
+    (-ENOMEM) as u64
+}
+
+fn allocate_guest_pages(gpa: u64, len: u64, prot: u64) -> bool {
+    let aligned_len = (len + 0xFFF) & !0xFFF;
+    let start_gpa = gpa & !0xFFF;
+    
+    let mut mgr = crate::enclave::get_manager();
+    if let Some(manager) = mgr.as_mut() {
+        if let Some(cur) = manager.current_id() {
+            if let Some(enclave) = manager.get_enclave_mut(cur) {
+                let mut flags = crate::memory::ept::EptFlags::MEMORY_TYPE_WB;
+                if (prot & PROT_READ) != 0 {
+                    flags |= crate::memory::ept::EptFlags::READ;
+                }
+                if (prot & PROT_WRITE) != 0 {
+                    flags |= crate::memory::ept::EptFlags::WRITE;
+                }
+                if (prot & PROT_EXEC) != 0 {
+                    flags |= crate::memory::ept::EptFlags::EXECUTE;
+                }
+                
+                let mut current_gpa = start_gpa;
+                let end_gpa = start_gpa + aligned_len;
+                while current_gpa < end_gpa {
+                    if let Some(frame) = crate::memory::allocate_frame() {
+                        let hpa = frame.start_address();
+                        enclave.ept.map(x86_64::PhysAddr::new(current_gpa), hpa, flags);
+                    } else {
+                        return false;
+                    }
+                    current_gpa += 4096;
+                }
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn sys_mmap(regs: &mut GuestRegisters) -> u64 {
+    let addr = regs.rdi;
     let len = regs.rsi;
+    let prot = regs.rdx;
+    let flags = regs.r10;
+    let fd = regs.r8 as i32;
+    let offset = regs.r9;
+
     if len == 0 {
-        return EINVAL as u64;
+        return (-EINVAL) as u64;
     }
 
     let aligned_len = (len + 0xFFF) & !0xFFF;
+    let is_anonymous = (flags & MAP_ANONYMOUS) != 0;
+    let is_fixed = (flags & MAP_FIXED) != 0;
+    let is_private = (flags & MAP_PRIVATE) != 0;
+    let is_shared = (flags & MAP_SHARED) != 0;
+
+    if !is_anonymous && !is_private && !is_shared {
+        return (-EINVAL) as u64;
+    }
+
+    let result_addr: u64;
 
     unsafe {
-        let result = MMAP_NEXT;
-        MMAP_NEXT += aligned_len;
-        
-        let mut mgr = crate::enclave::get_manager();
-        if let Some(manager) = mgr.as_mut() {
-            if let Some(cur) = manager.current_id() {
-                if let Some(enclave) = manager.get_enclave_mut(cur) {
-                    let mut gpa = result;
-                    let end = result + aligned_len;
-                    while gpa < end {
-                        if let Some(frame) = crate::memory::allocate_frame() {
-                            let hpa = frame.start_address();
-                            let flags = crate::memory::ept::EptFlags::READ 
-                                | crate::memory::ept::EptFlags::WRITE
-                                | crate::memory::ept::EptFlags::EXECUTE
-                                | crate::memory::ept::EptFlags::MEMORY_TYPE_WB;
-                            enclave.ept.map(x86_64::PhysAddr::new(gpa), hpa, flags);
+        if is_fixed && addr != 0 {
+            if addr < 0x1000_0000 || addr >= 0x8000_0000 {
+                return (-EINVAL) as u64;
+            }
+            result_addr = addr & !0xFFF;
+        } else {
+            result_addr = MMAP_NEXT;
+            MMAP_NEXT += aligned_len;
+        }
+
+        if is_anonymous {
+            if allocate_guest_pages(result_addr, aligned_len, prot) {
+                let mut mgr = crate::enclave::get_manager();
+                if let Some(manager) = mgr.as_mut() {
+                    if let Some(cur) = manager.current_id() {
+                        if let Some(enclave) = manager.get_enclave_mut(cur) {
+                            let mut current_gpa = result_addr;
+                            let end_gpa = result_addr + aligned_len;
+                            while current_gpa < end_gpa {
+                                if let Some(hpa) = enclave.ept.translate_gpa(x86_64::PhysAddr::new(current_gpa)) {
+                                    let virt = crate::memory::phys_to_virt(hpa);
+                                    unsafe {
+                                        let ptr = virt.as_u64() as *mut u8;
+                                        for i in 0..4096 {
+                                            ptr.add(i).write_volatile(0);
+                                        }
+                                    }
+                                }
+                                current_gpa += 4096;
+                            }
                         }
-                        gpa += 4096;
                     }
                 }
+                result_addr
+            } else {
+                (-ENOMEM) as u64
+            }
+        } else {
+            if allocate_guest_pages(result_addr, aligned_len, prot) {
+                result_addr
+            } else {
+                (-ENOMEM) as u64
             }
         }
-        result
     }
 }
 
 fn sys_munmap(regs: &mut GuestRegisters) -> u64 {
-    0
+    let addr = regs.rdi;
+    let len = regs.rsi;
+
+    if len == 0 {
+        return (-EINVAL) as u64;
+    }
+    if (addr & 0xFFF) != 0 {
+        return (-EINVAL) as u64;
+    }
+
+    let aligned_len = (len + 0xFFF) & !0xFFF;
+    let start_gpa = addr & !0xFFF;
+    
+    let mut mgr = crate::enclave::get_manager();
+    if let Some(manager) = mgr.as_mut() {
+        if let Some(cur) = manager.current_id() {
+            if let Some(enclave) = manager.get_enclave_mut(cur) {
+                let mut current_gpa = start_gpa;
+                let end_gpa = start_gpa + aligned_len;
+                while current_gpa < end_gpa {
+                    let _ = enclave.ept.unmap(x86_64::PhysAddr::new(current_gpa));
+                    current_gpa += 4096;
+                }
+                return 0;
+            }
+        }
+    }
+    
+    (-EINVAL) as u64
 }
 
 fn sys_mprotect(regs: &mut GuestRegisters) -> u64 {
-    0
+    let addr = regs.rdi;
+    let len = regs.rsi;
+    let prot = regs.rdx;
+
+    if len == 0 {
+        return 0;
+    }
+    if (addr & 0xFFF) != 0 {
+        return (-EINVAL) as u64;
+    }
+
+    let aligned_len = (len + 0xFFF) & !0xFFF;
+    let start_gpa = addr & !0xFFF;
+    
+    let mut mgr = crate::enclave::get_manager();
+    if let Some(manager) = mgr.as_mut() {
+        if let Some(cur) = manager.current_id() {
+            if let Some(enclave) = manager.get_enclave_mut(cur) {
+                let mut flags = crate::memory::ept::EptFlags::MEMORY_TYPE_WB;
+                if (prot & PROT_READ) != 0 {
+                    flags |= crate::memory::ept::EptFlags::READ;
+                }
+                if (prot & PROT_WRITE) != 0 {
+                    flags |= crate::memory::ept::EptFlags::WRITE;
+                }
+                if (prot & PROT_EXEC) != 0 {
+                    flags |= crate::memory::ept::EptFlags::EXECUTE;
+                }
+                
+                let mut current_gpa = start_gpa;
+                let end_gpa = start_gpa + aligned_len;
+                while current_gpa < end_gpa {
+                    if let Some(hpa) = enclave.ept.translate_gpa(x86_64::PhysAddr::new(current_gpa)) {
+                        enclave.ept.map(x86_64::PhysAddr::new(current_gpa), hpa, flags);
+                    }
+                    current_gpa += 4096;
+                }
+                return 0;
+            }
+        }
+    }
+    
+    (-ENOMEM) as u64
 }
 
 fn sys_getpid(regs: &mut GuestRegisters) -> u64 {
@@ -745,49 +1127,212 @@ fn sys_sched_yield(regs: &mut GuestRegisters) -> u64 {
     0
 }
 
+fn sys_lseek(regs: &mut GuestRegisters) -> u64 {
+    let fd = regs.rdi as i32;
+    let offset = regs.rsi as i64;
+    let whence = regs.rdx as i32;
+
+    if fd < 0 {
+        return (-EBADF) as u64;
+    }
+
+    let vfs = unsafe { get_vfs().as_mut() };
+    if vfs.is_none() {
+        return (-ENOENT) as u64;
+    }
+    let vfs = vfs.unwrap();
+
+    let seek_from = match whence {
+        SEEK_SET => SeekFrom::Start(offset as u64),
+        SEEK_CUR => SeekFrom::Current(offset),
+        SEEK_END => SeekFrom::End(offset),
+        _ => return (-EINVAL) as u64,
+    };
+
+    match vfs.lseek(fd, offset, seek_from) {
+        Ok(pos) => pos,
+        Err(e) => (-e) as u64,
+    }
+}
+
 fn sys_fstat(regs: &mut GuestRegisters) -> u64 {
-    0
+    let fd = regs.rdi as i32;
+    let statbuf_gpa = regs.rsi;
+
+    if fd < 0 {
+        return (-EBADF) as u64;
+    }
+
+    let vfs = unsafe { get_vfs().as_mut() };
+    if vfs.is_none() {
+        return (-ENOENT) as u64;
+    }
+    let vfs = vfs.unwrap();
+
+    let mut mgr = crate::enclave::get_manager();
+    let manager = match mgr.as_mut() {
+        Some(m) => m,
+        None => return (-EFAULT) as u64,
+    };
+    let cur = match manager.current_id() {
+        Some(id) => id,
+        None => return (-EFAULT) as u64,
+    };
+    let enclave = match manager.get_enclave_mut(cur) {
+        Some(e) => e,
+        None => return (-EFAULT) as u64,
+    };
+
+    let mut stat_buf: Stat = Default::default();
+    
+    match vfs.fstat(fd, &mut stat_buf, &enclave.ept) {
+        Ok(()) => {
+            let stat_bytes = unsafe {
+                core::slice::from_raw_parts(
+                    &stat_buf as *const Stat as *const u8,
+                    core::mem::size_of::<Stat>(),
+                )
+            };
+            copy_bytes_to_guest_gpa(&enclave.ept, statbuf_gpa, stat_bytes);
+            0
+        }
+        Err(e) => (-e) as u64,
+    }
 }
 
 fn sys_ioctl(regs: &mut GuestRegisters) -> u64 {
-    ENOSYS as u64
+    let fd = regs.rdi as i32;
+    let cmd = regs.rsi as u32;
+    
+    if fd < 0 {
+        return (-EBADF) as u64;
+    }
+    
+    const TIOCGWINSZ: u32 = 0x5413;
+    
+    match cmd {
+        TIOCGWINSZ => {
+            let mut mgr = crate::enclave::get_manager();
+            let manager = match mgr.as_mut() {
+                Some(m) => m,
+                None => return (-EFAULT) as u64,
+            };
+            let cur = match manager.current_id() {
+                Some(id) => id,
+                None => return (-EFAULT) as u64,
+            };
+            let enclave = match manager.get_enclave_mut(cur) {
+                Some(e) => e,
+                None => return (-EFAULT) as u64,
+            };
+            
+            let winsz = [0u8; 8];
+            copy_bytes_to_guest_gpa(&enclave.ept, regs.rdx, &winsz);
+            0
+        }
+        _ => (-ENOSYS) as u64,
+    }
 }
 
 fn sys_access(regs: &mut GuestRegisters) -> u64 {
-    0
+    let path_gpa = regs.rdi;
+    let mode = regs.rsi as i32;
+
+    let path = match read_string_from_guest(path_gpa, 256) {
+        Some(p) => p,
+        None => return (-ENOENT) as u64,
+    };
+
+    let vfs = unsafe { get_vfs().as_mut() };
+    if vfs.is_none() {
+        return (-ENOENT) as u64;
+    }
+    let vfs = vfs.unwrap();
+
+    match vfs.access(&path, mode) {
+        Ok(()) => 0,
+        Err(e) => (-e) as u64,
+    }
 }
 
 fn sys_getcwd(regs: &mut GuestRegisters) -> u64 {
     let buf_gpa = regs.rdi;
     let size = regs.rsi as usize;
 
-    if size < 2 {
-        return ERANGE as u64;
+    let vfs = unsafe { get_vfs().as_mut() };
+    if vfs.is_none() {
+        return (-ENOENT) as u64;
     }
+    let vfs = vfs.unwrap();
 
-    let cwd = b"/\0";
-    if cwd.len() > size {
-        return ERANGE as u64;
+    let cwd = vfs.getcwd();
+    let cwd_bytes = cwd.as_bytes();
+    
+    if cwd_bytes.len() + 1 > size {
+        return (-ERANGE) as u64;
     }
 
     let mut mgr = crate::enclave::get_manager();
-    if let Some(manager) = mgr.as_mut() {
-        if let Some(cur) = manager.current_id() {
-            if let Some(enclave) = manager.get_enclave_mut(cur) {
-                copy_bytes_to_guest_gpa(&enclave.ept, buf_gpa, cwd);
-                return buf_gpa;
-            }
-        }
-    }
-    EFAULT as u64
+    let manager = match mgr.as_mut() {
+        Some(m) => m,
+        None => return (-EFAULT) as u64,
+    };
+    let cur = match manager.current_id() {
+        Some(id) => id,
+        None => return (-EFAULT) as u64,
+    };
+    let enclave = match manager.get_enclave_mut(cur) {
+        Some(e) => e,
+        None => return (-EFAULT) as u64,
+    };
+
+    let mut buf = alloc::vec::Vec::with_capacity(cwd_bytes.len() + 1);
+    buf.extend_from_slice(cwd_bytes);
+    buf.push(0);
+    
+    copy_bytes_to_guest_gpa(&enclave.ept, buf_gpa, &buf);
+    buf_gpa
 }
 
 fn sys_chdir(regs: &mut GuestRegisters) -> u64 {
-    0
+    let path_gpa = regs.rdi;
+
+    let path = match read_string_from_guest(path_gpa, 256) {
+        Some(p) => p,
+        None => return (-ENOENT) as u64,
+    };
+
+    let vfs = unsafe { get_vfs().as_mut() };
+    if vfs.is_none() {
+        return (-ENOENT) as u64;
+    }
+    let vfs = vfs.unwrap();
+
+    match vfs.chdir(&path) {
+        Ok(()) => 0,
+        Err(e) => (-e) as u64,
+    }
 }
 
 fn sys_fcntl(regs: &mut GuestRegisters) -> u64 {
-    ENOSYS as u64
+    let fd = regs.rdi as i32;
+    let cmd = regs.rsi as i32;
+    let arg = regs.rdx;
+
+    if fd < 0 {
+        return (-EBADF) as u64;
+    }
+
+    let vfs = unsafe { get_vfs().as_mut() };
+    if vfs.is_none() {
+        return (-ENOENT) as u64;
+    }
+    let vfs = vfs.unwrap();
+
+    match vfs.fcntl(fd, cmd, arg) {
+        Ok(result) => result,
+        Err(e) => (-e) as u64,
+    }
 }
 
 fn sys_getdents64(regs: &mut GuestRegisters) -> u64 {
@@ -796,19 +1341,41 @@ fn sys_getdents64(regs: &mut GuestRegisters) -> u64 {
 
 fn sys_dup(regs: &mut GuestRegisters) -> u64 {
     let fd = regs.rdi as i32;
-    if fd < 0 || fd > 2 {
-        return EBADF as u64;
+
+    if fd < 0 {
+        return (-EBADF) as u64;
     }
-    3
+
+    let vfs = unsafe { get_vfs().as_mut() };
+    if vfs.is_none() {
+        return (-ENOENT) as u64;
+    }
+    let vfs = vfs.unwrap();
+
+    match vfs.dup(fd) {
+        Ok(new_fd) => new_fd as u64,
+        Err(e) => (-e) as u64,
+    }
 }
 
 fn sys_dup2(regs: &mut GuestRegisters) -> u64 {
     let old_fd = regs.rdi as i32;
     let new_fd = regs.rsi as i32;
-    if old_fd < 0 || old_fd > 2 {
-        return EBADF as u64;
+
+    if old_fd < 0 || new_fd < 0 {
+        return (-EBADF) as u64;
     }
-    new_fd as u64
+
+    let vfs = unsafe { get_vfs().as_mut() };
+    if vfs.is_none() {
+        return (-ENOENT) as u64;
+    }
+    let vfs = vfs.unwrap();
+
+    match vfs.dup2(old_fd, new_fd) {
+        Ok(fd) => fd as u64,
+        Err(e) => (-e) as u64,
+    }
 }
 
 fn sys_pipe(regs: &mut GuestRegisters) -> u64 {
@@ -865,4 +1432,304 @@ fn sys_getrandom(regs: &mut GuestRegisters) -> u64 {
     }
 
     written as u64
+}
+
+fn sys_mremap(regs: &mut GuestRegisters) -> u64 {
+    let old_address = regs.rdi;
+    let old_size = regs.rsi;
+    let new_size = regs.rdx;
+    let flags = regs.r10;
+    let new_address = regs.r8;
+
+    if old_size == 0 || new_size == 0 {
+        return (-EINVAL) as u64;
+    }
+
+    let may_move = (flags & MREMAP_MAYMOVE) != 0;
+    let is_fixed = (flags & MREMAP_FIXED) != 0;
+    let dont_unmap = (flags & MREMAP_DONTUNMAP) != 0;
+
+    if is_fixed && !may_move {
+        return (-EINVAL) as u64;
+    }
+
+    let old_aligned_size = (old_size + 0xFFF) & !0xFFF;
+    let new_aligned_size = (new_size + 0xFFF) & !0xFFF;
+
+    unsafe {
+        if new_aligned_size <= old_aligned_size {
+            return old_address;
+        }
+
+        let mut mgr = crate::enclave::get_manager();
+        if let Some(manager) = mgr.as_mut() {
+            if let Some(cur) = manager.current_id() {
+                if let Some(enclave) = manager.get_enclave_mut(cur) {
+                    let start_gpa = old_address + old_aligned_size;
+                    let mut gpa = start_gpa;
+                    let end_gpa = old_address + new_aligned_size;
+                    
+                    while gpa < end_gpa {
+                        if let Some(frame) = crate::memory::allocate_frame() {
+                            let hpa = frame.start_address();
+                            let flags = crate::memory::ept::EptFlags::READ 
+                                | crate::memory::ept::EptFlags::WRITE
+                                | crate::memory::ept::EptFlags::EXECUTE
+                                | crate::memory::ept::EptFlags::MEMORY_TYPE_WB;
+                            enclave.ept.map(x86_64::PhysAddr::new(gpa), hpa, flags);
+                        }
+                        gpa += 4096;
+                    }
+                    
+                    return old_address;
+                }
+            }
+        }
+
+        if may_move {
+            let result_addr = MMAP_NEXT;
+            MMAP_NEXT += new_aligned_size;
+
+            let mut mgr = crate::enclave::get_manager();
+            if let Some(manager) = mgr.as_mut() {
+                if let Some(cur) = manager.current_id() {
+                    if let Some(enclave) = manager.get_enclave_mut(cur) {
+                        let mut copy_success = true;
+                        let mut src_gpa = old_address & !0xFFF;
+                        let mut dst_gpa = result_addr;
+                        let copy_size = old_aligned_size.min(new_aligned_size);
+                        let mut copied = 0u64;
+
+                        while copied < copy_size {
+                            if let Some(src_hpa) = enclave.ept.translate_gpa(x86_64::PhysAddr::new(src_gpa)) {
+                                if let Some(dst_frame) = crate::memory::allocate_frame() {
+                                    let dst_hpa = dst_frame.start_address();
+                                    let flags = crate::memory::ept::EptFlags::READ 
+                                        | crate::memory::ept::EptFlags::WRITE
+                                        | crate::memory::ept::EptFlags::EXECUTE
+                                        | crate::memory::ept::EptFlags::MEMORY_TYPE_WB;
+                                    enclave.ept.map(x86_64::PhysAddr::new(dst_gpa), dst_hpa, flags);
+
+                                    let src_virt = crate::memory::phys_to_virt(src_hpa);
+                                    let dst_virt = crate::memory::phys_to_virt(dst_hpa);
+                                    unsafe {
+                                        core::ptr::copy_nonoverlapping(
+                                            src_virt.as_u64() as *const u8,
+                                            dst_virt.as_u64() as *mut u8,
+                                            4096,
+                                        );
+                                    }
+                                } else {
+                                    copy_success = false;
+                                    break;
+                                }
+                            }
+                            src_gpa += 4096;
+                            dst_gpa += 4096;
+                            copied += 4096;
+                        }
+
+                        if copy_success && !dont_unmap {
+                            let mut gpa = old_address & !0xFFF;
+                            let end_gpa = gpa + old_aligned_size;
+                            while gpa < end_gpa {
+                                let _ = enclave.ept.unmap(x86_64::PhysAddr::new(gpa));
+                                gpa += 4096;
+                            }
+                        }
+
+                        if copy_success {
+                            return result_addr;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    (-ENOMEM) as u64
+}
+
+fn read_tsc() -> u64 {
+    let mut lo: u32 = 0;
+    let mut hi: u32 = 0;
+    unsafe {
+        core::arch::asm!("lfence; rdtsc", out("eax") lo, out("edx") hi, options(nomem, nostack));
+    }
+    ((hi as u64) << 32) | (lo as u64)
+}
+
+fn get_current_time_ns() -> u64 {
+    let tsc = read_tsc();
+    let freq = 3_000_000_000u64;
+    let secs = tsc / freq;
+    let nanos = ((tsc % freq) * 1_000_000_000) / freq;
+    let boot_time_sec = 1_700_000_000u64;
+    (boot_time_sec + secs) * 1_000_000_000 + nanos
+}
+
+fn sys_clock_gettime(regs: &mut GuestRegisters) -> u64 {
+    let clock_id = regs.rdi as i32;
+    let tp_gpa = regs.rsi;
+
+    if tp_gpa == 0 {
+        return (-EFAULT) as u64;
+    }
+
+    match clock_id {
+        CLOCK_REALTIME | CLOCK_MONOTONIC | CLOCK_MONOTONIC_RAW | 
+        CLOCK_REALTIME_COARSE | CLOCK_MONOTONIC_COARSE | CLOCK_BOOTTIME => {
+            let now_ns = get_current_time_ns();
+            let tv_sec = now_ns / 1_000_000_000;
+            let tv_nsec = now_ns % 1_000_000_000;
+
+            let mut time_spec = [0u8; 16];
+            time_spec[..8].copy_from_slice(&tv_sec.to_ne_bytes());
+            time_spec[8..].copy_from_slice(&tv_nsec.to_ne_bytes());
+
+            let mut mgr = crate::enclave::get_manager();
+            if let Some(manager) = mgr.as_mut() {
+                if let Some(cur) = manager.current_id() {
+                    if let Some(enclave) = manager.get_enclave_mut(cur) {
+                        copy_bytes_to_guest_gpa(&enclave.ept, tp_gpa, &time_spec);
+                        return 0;
+                    }
+                }
+            }
+            (-EFAULT) as u64
+        }
+        CLOCK_PROCESS_CPUTIME_ID | CLOCK_THREAD_CPUTIME_ID => {
+            let mut time_spec = [0u8; 16];
+            let tv_sec = 0u64;
+            let tv_nsec = 0u64;
+            time_spec[..8].copy_from_slice(&tv_sec.to_ne_bytes());
+            time_spec[8..].copy_from_slice(&tv_nsec.to_ne_bytes());
+
+            let mut mgr = crate::enclave::get_manager();
+            if let Some(manager) = mgr.as_mut() {
+                if let Some(cur) = manager.current_id() {
+                    if let Some(enclave) = manager.get_enclave_mut(cur) {
+                        copy_bytes_to_guest_gpa(&enclave.ept, tp_gpa, &time_spec);
+                        return 0;
+                    }
+                }
+            }
+            (-EFAULT) as u64
+        }
+        _ => (-EINVAL) as u64,
+    }
+}
+
+fn sys_clock_getres(regs: &mut GuestRegisters) -> u64 {
+    let clock_id = regs.rdi as i32;
+    let res_gpa = regs.rsi;
+
+    if res_gpa == 0 {
+        return 0;
+    }
+
+    match clock_id {
+        CLOCK_REALTIME | CLOCK_MONOTONIC | CLOCK_MONOTONIC_RAW |
+        CLOCK_REALTIME_COARSE | CLOCK_MONOTONIC_COARSE | CLOCK_BOOTTIME |
+        CLOCK_PROCESS_CPUTIME_ID | CLOCK_THREAD_CPUTIME_ID => {
+            let tv_sec = 0u64;
+            let tv_nsec = 1u64;
+            let mut time_spec = [0u8; 16];
+            time_spec[..8].copy_from_slice(&tv_sec.to_ne_bytes());
+            time_spec[8..].copy_from_slice(&tv_nsec.to_ne_bytes());
+
+            let mut mgr = crate::enclave::get_manager();
+            if let Some(manager) = mgr.as_mut() {
+                if let Some(cur) = manager.current_id() {
+                    if let Some(enclave) = manager.get_enclave_mut(cur) {
+                        copy_bytes_to_guest_gpa(&enclave.ept, res_gpa, &time_spec);
+                        return 0;
+                    }
+                }
+            }
+            (-EFAULT) as u64
+        }
+        _ => (-EINVAL) as u64,
+    }
+}
+
+fn sys_gettimeofday(regs: &mut GuestRegisters) -> u64 {
+    let tv_gpa = regs.rdi;
+    let tz_gpa = regs.rsi;
+
+    if tv_gpa != 0 {
+        let now_ns = get_current_time_ns();
+        let tv_sec = now_ns / 1_000_000_000;
+        let tv_usec = (now_ns % 1_000_000_000) / 1000;
+
+        let mut timeval = [0u8; 16];
+        timeval[..8].copy_from_slice(&tv_sec.to_ne_bytes());
+        timeval[8..].copy_from_slice(&tv_usec.to_ne_bytes());
+
+        let mut mgr = crate::enclave::get_manager();
+        if let Some(manager) = mgr.as_mut() {
+            if let Some(cur) = manager.current_id() {
+                if let Some(enclave) = manager.get_enclave_mut(cur) {
+                    copy_bytes_to_guest_gpa(&enclave.ept, tv_gpa, &timeval);
+                }
+            }
+        }
+    }
+
+    if tz_gpa != 0 {
+        let tz = [0u8; 8];
+        let mut mgr = crate::enclave::get_manager();
+        if let Some(manager) = mgr.as_mut() {
+            if let Some(cur) = manager.current_id() {
+                if let Some(enclave) = manager.get_enclave_mut(cur) {
+                    copy_bytes_to_guest_gpa(&enclave.ept, tz_gpa, &tz);
+                }
+            }
+        }
+    }
+
+    0
+}
+
+fn sys_nanosleep(regs: &mut GuestRegisters) -> u64 {
+    let req_gpa = regs.rdi;
+    let rem_gpa = regs.rsi;
+
+    if req_gpa == 0 {
+        return (-EFAULT) as u64;
+    }
+
+    let mut mgr = crate::enclave::get_manager();
+    let manager = match mgr.as_mut() {
+        Some(m) => m,
+        None => return (-EFAULT) as u64,
+    };
+    let cur = match manager.current_id() {
+        Some(id) => id,
+        None => return (-EFAULT) as u64,
+    };
+    let enclave = match manager.get_enclave_mut(cur) {
+        Some(e) => e,
+        None => return (-EFAULT) as u64,
+    };
+
+    let mut req = [0u8; 16];
+    let n = copy_guest_gpa_bytes(&enclave.ept, req_gpa, &mut req);
+    if n < 16 {
+        return (-EFAULT) as u64;
+    }
+
+    let tv_sec = u64::from_ne_bytes(req[..8].try_into().unwrap());
+    let tv_nsec = u64::from_ne_bytes(req[8..].try_into().unwrap());
+
+    if tv_nsec >= 1_000_000_000 {
+        return (-EINVAL) as u64;
+    }
+
+    if rem_gpa != 0 {
+        let zero = [0u8; 16];
+        copy_bytes_to_guest_gpa(&enclave.ept, rem_gpa, &zero);
+    }
+
+    0
 }

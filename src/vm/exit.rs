@@ -1,5 +1,6 @@
 /* src/vm/exit.rs */
 use crate::arch::x86_64::vmx::{GuestRegisters, instructions::{vmread, vmwrite}, vmcs::VmcsField};
+use crate::vm::syscall::SyscallHandler;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExitReason {
@@ -118,6 +119,11 @@ fn handle_vmcall(regs: &mut GuestRegisters) -> bool {
     true
 }
 
+fn handle_preemption_timer(_regs: &mut GuestRegisters) -> bool {
+    crate::log_debug!("VMX preemption timer fired");
+    true
+}
+
 fn check_syscall_instruction(guest_rip: u64, regs: &mut GuestRegisters) -> Option<usize> {
     let mut mgr = crate::enclave::get_manager();
     let manager = mgr.as_mut()?;
@@ -162,21 +168,21 @@ const MSR_IA32_SYSENTER_CS: u32 = 0x174;
 const MSR_IA32_SYSENTER_ESP: u32 = 0x175;
 const MSR_IA32_SYSENTER_EIP: u32 = 0x176;
 
-struct MacroRealmMsrState {
-    star: u64,
-    lstar: u64,
-    cstar: u64,
-    fmask: u64,
-    fs_base: u64,
-    gs_base: u64,
-    kernel_gs_base: u64,
-    sysenter_cs: u64,
-    sysenter_esp: u64,
-    sysenter_eip: u64,
-    efer: u64,
+pub struct MacroRealmMsrState {
+    pub star: u64,
+    pub lstar: u64,
+    pub cstar: u64,
+    pub fmask: u64,
+    pub fs_base: u64,
+    pub gs_base: u64,
+    pub kernel_gs_base: u64,
+    pub sysenter_cs: u64,
+    pub sysenter_esp: u64,
+    pub sysenter_eip: u64,
+    pub efer: u64,
 }
 
-static mut GUEST_MSR_STATE: MacroRealmMsrState = MacroRealmMsrState {
+pub static mut GUEST_MSR_STATE: MacroRealmMsrState = MacroRealmMsrState {
     star: 0,
     lstar: 0,
     cstar: 0,
@@ -405,7 +411,7 @@ fn handle_io_access(regs: &mut GuestRegisters, exit_qual: u64) -> bool {
                 }
             }
         }
-        0x3F9...0x3FF => {
+        0x3F9..=0x3FF => {
             if is_in {
                 match operand_size {
                     1 => regs.rax = (regs.rax & !0xFF) | 0x00,

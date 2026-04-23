@@ -177,15 +177,90 @@ fn write_str(s: &str) {
     }
 }
 
+fn u64_to_hex(mut n: u64, buf: &mut [u8]) -> usize {
+    const HEX_CHARS: &[u8] = b"0123456789abcdef";
+    let mut i = buf.len();
+    
+    if n == 0 {
+        i -= 1;
+        buf[i] = b'0';
+        return 1;
+    }
+    
+    while n > 0 && i > 0 {
+        i -= 1;
+        buf[i] = HEX_CHARS[(n & 0xF) as usize];
+        n >>= 4;
+    }
+    buf.len() - i
+}
+
+fn u64_to_hex_padded(mut n: u64, buf: &mut [u8], width: usize) -> usize {
+    const HEX_CHARS: &[u8] = b"0123456789abcdef";
+    let mut i = buf.len();
+    let start = if width > buf.len() { 0 } else { buf.len() - width };
+    
+    while n > 0 && i > start {
+        i -= 1;
+        buf[i] = HEX_CHARS[(n & 0xF) as usize];
+        n >>= 4;
+    }
+    
+    while i > start {
+        i -= 1;
+        buf[i] = b'0';
+    }
+    
+    buf.len() - i
+}
+
+fn u64_to_dec(mut n: u64, buf: &mut [u8]) -> usize {
+    let mut i = buf.len();
+    
+    if n == 0 {
+        i -= 1;
+        buf[i] = b'0';
+        return 1;
+    }
+    
+    while n > 0 && i > 0 {
+        i -= 1;
+        buf[i] = (n % 10) as u8 + b'0';
+        n /= 10;
+    }
+    buf.len() - i
+}
+
+fn i64_to_dec(mut n: i64, buf: &mut [u8]) -> usize {
+    let is_negative = n < 0;
+    if is_negative {
+        n = -n;
+    }
+    
+    let len = u64_to_dec(n as u64, buf);
+    
+    if is_negative {
+        let start = buf.len() - len - 1;
+        if start > 0 {
+            buf[start] = b'-';
+            return len + 1;
+        }
+    }
+    len
+}
+
 fn hex_dump(buf: &[u8]) {
+    let mut hex_buf = [0u8; 32];
     for (i, &byte) in buf.iter().enumerate() {
         if i % 16 == 0 {
-            write_str(&format!("{:04x}: ", i));
-        }
-        write_str(&format!("{:02x} ", byte));
-        if i % 16 == 15 {
             write_str("\n");
+            let len = u64_to_hex_padded(i as u64, &mut hex_buf, 4);
+            write_str(unsafe { core::str::from_utf8_unchecked(&hex_buf[hex_buf.len() - len..]) });
+            write_str(": ");
         }
+        let len = u64_to_hex_padded(byte as u64, &mut hex_buf, 2);
+        write_str(unsafe { core::str::from_utf8_unchecked(&hex_buf[hex_buf.len() - len..]) });
+        write_str(" ");
     }
     write_str("\n");
 }
@@ -219,9 +294,17 @@ struct Timeval {
     tv_usec: i64,
 }
 
+fn cstr_to_str(cstr: &[u8]) -> &str {
+    let len = cstr.iter().position(|&b| b == 0).unwrap_or(cstr.len());
+    unsafe { core::str::from_utf8_unchecked(&cstr[..len]) }
+}
+
 #[no_mangle]
 #[link_section = ".text.entry"]
 pub extern "C" fn _start() -> ! {
+    let mut dec_buf = [0u8; 32];
+    let mut hex_buf = [0u8; 32];
+    
     write_str("[MacroDomain] Starting Linux syscall compatibility test...\n");
     
     write_str("[MacroDomain] Test 1: write syscall to stdout... ");
@@ -231,20 +314,29 @@ pub extern "C" fn _start() -> ! {
         if ret == test_msg.len() as u64 {
             write_str("PASSED\n");
         } else {
-            write_str(&format!("FAILED (ret={})\n", ret));
+            write_str("FAILED (ret=");
+            let len = u64_to_dec(ret, &mut dec_buf);
+            write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+            write_str(")\n");
         }
     }
     
     write_str("[MacroDomain] Test 2: getpid syscall... ");
     unsafe {
         let pid = syscall0(SYS_GETPID);
-        write_str(&format!("PASSED (pid={})\n", pid));
+        write_str("PASSED (pid=");
+        let len = u64_to_dec(pid, &mut dec_buf);
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str(")\n");
     }
     
     write_str("[MacroDomain] Test 3: getppid syscall... ");
     unsafe {
         let ppid = syscall0(SYS_GETPPID);
-        write_str(&format!("PASSED (ppid={})\n", ppid));
+        write_str("PASSED (ppid=");
+        let len = u64_to_dec(ppid, &mut dec_buf);
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str(")\n");
     }
     
     write_str("[MacroDomain] Test 4: getuid/getgid syscalls... ");
@@ -253,34 +345,62 @@ pub extern "C" fn _start() -> ! {
         let gid = syscall0(SYS_GETGID);
         let euid = syscall0(SYS_GETEUID);
         let egid = syscall0(SYS_GETEGID);
-        write_str(&format!("PASSED (uid={}, gid={}, euid={}, egid={})\n", uid, gid, euid, egid));
+        write_str("PASSED (uid=");
+        let mut len = u64_to_dec(uid, &mut dec_buf);
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str(", gid=");
+        len = u64_to_dec(gid, &mut dec_buf);
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str(", euid=");
+        len = u64_to_dec(euid, &mut dec_buf);
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str(", egid=");
+        len = u64_to_dec(egid, &mut dec_buf);
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str(")\n");
     }
     
     write_str("[MacroDomain] Test 5: brk syscall for heap allocation... ");
     unsafe {
         let initial_brk = syscall1(SYS_BRK, 0);
-        write_str(&format!("initial_brk={:#x} ", initial_brk));
+        write_str("initial_brk=");
+        let mut len = u64_to_hex(initial_brk, &mut hex_buf);
+        write_str(unsafe { core::str::from_utf8_unchecked(&hex_buf[hex_buf.len() - len..]) });
+        write_str(" ");
         
         let new_brk = initial_brk + 0x2000;
         let result = syscall1(SYS_BRK, new_brk);
         
         if result >= new_brk {
-            write_str(&format!("PASSED (new_brk={:#x})\n", result));
+            write_str("PASSED (new_brk=");
+            len = u64_to_hex(result, &mut hex_buf);
+            write_str(unsafe { core::str::from_utf8_unchecked(&hex_buf[hex_buf.len() - len..]) });
+            write_str(")\n");
             
             let ptr = initial_brk as *mut u8;
             for i in 0..0x2000 {
                 *ptr.add(i) = (i & 0xFF) as u8;
             }
             
+            let mut verified = true;
             for i in 0..0x2000 {
                 if *ptr.add(i) != (i & 0xFF) as u8 {
-                    write_str(&format!("Heap verification FAILED at offset {}\n", i));
+                    write_str("Heap verification FAILED at offset ");
+                    len = u64_to_dec(i as u64, &mut dec_buf);
+                    write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+                    write_str("\n");
+                    verified = false;
                     break;
                 }
             }
-            write_str("[MacroDomain] Heap write/read verification PASSED\n");
+            if verified {
+                write_str("[MacroDomain] Heap write/read verification PASSED\n");
+            }
         } else {
-            write_str(&format!("FAILED (result={:#x})\n", result));
+            write_str("FAILED (result=");
+            len = u64_to_hex(result, &mut hex_buf);
+            write_str(unsafe { core::str::from_utf8_unchecked(&hex_buf[hex_buf.len() - len..]) });
+            write_str(")\n");
         }
     }
     
@@ -292,17 +412,26 @@ pub extern "C" fn _start() -> ! {
         if ret == 0 {
             write_str("PASSED\n");
             
-            let sysname = core::ffi::CStr::from_ptr(utsname.sysname.as_ptr() as *const i8);
-            let release = core::ffi::CStr::from_ptr(utsname.release.as_ptr() as *const i8);
-            let version = core::ffi::CStr::from_ptr(utsname.version.as_ptr() as *const i8);
-            let machine = core::ffi::CStr::from_ptr(utsname.machine.as_ptr() as *const i8);
+            write_str("[MacroDomain]   sysname: ");
+            write_str(cstr_to_str(&utsname.sysname));
+            write_str("\n");
             
-            write_str(&format!("[MacroDomain]   sysname: {:?}\n", sysname.to_str().unwrap_or("")));
-            write_str(&format!("[MacroDomain]   release: {:?}\n", release.to_str().unwrap_or("")));
-            write_str(&format!("[MacroDomain]   version: {:?}\n", version.to_str().unwrap_or("")));
-            write_str(&format!("[MacroDomain]   machine: {:?}\n", machine.to_str().unwrap_or("")));
+            write_str("[MacroDomain]   release: ");
+            write_str(cstr_to_str(&utsname.release));
+            write_str("\n");
+            
+            write_str("[MacroDomain]   version: ");
+            write_str(cstr_to_str(&utsname.version));
+            write_str("\n");
+            
+            write_str("[MacroDomain]   machine: ");
+            write_str(cstr_to_str(&utsname.machine));
+            write_str("\n");
         } else {
-            write_str(&format!("FAILED (ret={})\n", ret));
+            write_str("FAILED (ret=");
+            let len = u64_to_dec(ret, &mut dec_buf);
+            write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+            write_str(")\n");
         }
     }
     
@@ -319,29 +448,45 @@ pub extern "C" fn _start() -> ! {
         );
         
         if addr < 0xFFFF_FFFF_FFFF_0000 {
-            write_str(&format!("PASSED (addr={:#x})\n", addr));
+            write_str("PASSED (addr=");
+            let mut len = u64_to_hex(addr, &mut hex_buf);
+            write_str(unsafe { core::str::from_utf8_unchecked(&hex_buf[hex_buf.len() - len..]) });
+            write_str(")\n");
             
             let ptr = addr as *mut u8;
             for i in 0..0x4000 {
                 *ptr.add(i) = ((i * 3) & 0xFF) as u8;
             }
             
+            let mut verified = true;
             for i in 0..0x4000 {
                 if *ptr.add(i) != ((i * 3) & 0xFF) as u8 {
-                    write_str(&format!("MMAP verification FAILED at offset {}\n", i));
+                    write_str("MMAP verification FAILED at offset ");
+                    len = u64_to_dec(i as u64, &mut dec_buf);
+                    write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+                    write_str("\n");
+                    verified = false;
                     break;
                 }
             }
-            write_str("[MacroDomain] MMAP write/read verification PASSED\n");
+            if verified {
+                write_str("[MacroDomain] MMAP write/read verification PASSED\n");
+            }
             
             let ret = syscall2(SYS_MUNMAP, addr, 0x4000);
             if ret == 0 {
                 write_str("[MacroDomain] munmap PASSED\n");
             } else {
-                write_str(&format!("[MacroDomain] munmap FAILED (ret={})\n", ret));
+                write_str("[MacroDomain] munmap FAILED (ret=");
+                len = u64_to_dec(ret, &mut dec_buf);
+                write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+                write_str(")\n");
             }
         } else {
-            write_str(&format!("FAILED (addr={:#x})\n", addr));
+            write_str("FAILED (addr=");
+            let len = u64_to_hex(addr, &mut hex_buf);
+            write_str(unsafe { core::str::from_utf8_unchecked(&hex_buf[hex_buf.len() - len..]) });
+            write_str(")\n");
         }
     }
     
@@ -355,12 +500,24 @@ pub extern "C" fn _start() -> ! {
             let ret_get = syscall2(SYS_ARCH_PRCTL, ARCH_GET_FS, &mut get_fs as *mut u64 as u64);
             
             if ret_get == 0 && get_fs == test_fs_base {
-                write_str(&format!("PASSED (FS base set to {:#x})\n", get_fs));
+                write_str("PASSED (FS base set to ");
+                let len = u64_to_hex(get_fs, &mut hex_buf);
+                write_str(unsafe { core::str::from_utf8_unchecked(&hex_buf[hex_buf.len() - len..]) });
+                write_str(")\n");
             } else {
-                write_str(&format!("get_fs FAILED (ret={}, fs={:#x})\n", ret_get, get_fs));
+                write_str("get_fs FAILED (ret=");
+                let mut len = u64_to_dec(ret_get, &mut dec_buf);
+                write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+                write_str(", fs=");
+                len = u64_to_hex(get_fs, &mut hex_buf);
+                write_str(unsafe { core::str::from_utf8_unchecked(&hex_buf[hex_buf.len() - len..]) });
+                write_str(")\n");
             }
         } else {
-            write_str(&format!("set_fs FAILED (ret={})\n", ret_set));
+            write_str("set_fs FAILED (ret=");
+            let len = u64_to_dec(ret_set, &mut dec_buf);
+            write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+            write_str(")\n");
         }
     }
     
@@ -368,11 +525,26 @@ pub extern "C" fn _start() -> ! {
     unsafe {
         let mut t: i64 = 0;
         let time_ret = syscall1(SYS_TIME, &mut t as *mut i64 as u64);
-        write_str(&format!("time: t={}, ret={} ", t, time_ret));
+        write_str("time: t=");
+        let mut len = i64_to_dec(t, &mut dec_buf);
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str(", ret=");
+        len = u64_to_dec(time_ret, &mut dec_buf);
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str(" ");
         
         let mut tv = Timeval { tv_sec: 0, tv_usec: 0 };
         let gtod_ret = syscall2(SYS_GETTIMEOFDAY, &mut tv as *mut Timeval as u64, 0);
-        write_str(&format!("gettimeofday: tv_sec={}, tv_usec={}, ret={} ", tv.tv_sec, tv.tv_usec, gtod_ret));
+        write_str("gettimeofday: tv_sec=");
+        len = i64_to_dec(tv.tv_sec, &mut dec_buf);
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str(", tv_usec=");
+        len = i64_to_dec(tv.tv_usec, &mut dec_buf);
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str(", ret=");
+        len = u64_to_dec(gtod_ret, &mut dec_buf);
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str(" ");
         
         if gtod_ret == 0 && tv.tv_sec > 0 {
             write_str("PASSED\n");
@@ -389,11 +561,16 @@ pub extern "C" fn _start() -> ! {
         if ret == 32 {
             write_str("PASSED\n[MacroDomain]   Random bytes: ");
             for b in &random_buf {
-                write_str(&format!("{:02x} ", b));
+                let len = u64_to_hex_padded(*b as u64, &mut hex_buf, 2);
+                write_str(unsafe { core::str::from_utf8_unchecked(&hex_buf[hex_buf.len() - len..]) });
+                write_str(" ");
             }
             write_str("\n");
         } else {
-            write_str(&format!("FAILED (ret={})\n", ret));
+            write_str("FAILED (ret=");
+            let len = u64_to_dec(ret, &mut dec_buf);
+            write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+            write_str(")\n");
         }
     }
     
@@ -404,36 +581,60 @@ pub extern "C" fn _start() -> ! {
     unsafe {
         write_str("[MacroDomain]   SYS_RT_SIGPROCMASK: ");
         let ret = syscall4(SYS_RT_SIGPROCMASK, 0, 0, 0, 8);
-        write_str(&format!("ret={}\n", ret));
+        let len = u64_to_dec(ret, &mut dec_buf);
+        write_str("ret=");
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str("\n");
         
         write_str("[MacroDomain]   SYS_RT_SIGACTION: ");
         let ret = syscall4(SYS_RT_SIGACTION, 0, 0, 0, 8);
-        write_str(&format!("ret={}\n", ret));
+        let len = u64_to_dec(ret, &mut dec_buf);
+        write_str("ret=");
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str("\n");
         
         write_str("[MacroDomain]   SYS_PRCTL: ");
         let ret = syscall5(SYS_PRCTL, 15, 0, 0, 0, 0);
-        write_str(&format!("ret={}\n", ret));
+        let len = u64_to_dec(ret, &mut dec_buf);
+        write_str("ret=");
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str("\n");
         
         write_str("[MacroDomain]   SYS_SCHED_GETPARAM: ");
         let ret = syscall2(SYS_SCHED_GETPARAM, 0, 0);
-        write_str(&format!("ret={}\n", ret));
+        let len = u64_to_dec(ret, &mut dec_buf);
+        write_str("ret=");
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str("\n");
         
         write_str("[MacroDomain]   SYS_SCHED_SETSCHEDULER: ");
         let ret = syscall3(SYS_SCHED_SETSCHEDULER, 0, 0, 0);
-        write_str(&format!("ret={}\n", ret));
+        let len = u64_to_dec(ret, &mut dec_buf);
+        write_str("ret=");
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str("\n");
         
         write_str("[MacroDomain]   SYS_SET_TID_ADDRESS: ");
         let ret = syscall1(SYS_SET_TID_ADDRESS, 0);
-        write_str(&format!("ret={}\n", ret));
+        let len = u64_to_dec(ret, &mut dec_buf);
+        write_str("ret=");
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str("\n");
         
         write_str("[MacroDomain]   SYS_SET_ROBUST_LIST: ");
         let ret = syscall2(SYS_SET_ROBUST_LIST, 0, 0);
-        write_str(&format!("ret={}\n", ret));
+        let len = u64_to_dec(ret, &mut dec_buf);
+        write_str("ret=");
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str("\n");
         
         write_str("[MacroDomain]   SYS_OPEN (test /dev/null): ");
         let path = b"/dev/null\0";
         let fd = syscall2(SYS_OPEN, path.as_ptr() as u64, 0);
-        write_str(&format!("fd={} ", fd));
+        let mut len = u64_to_dec(fd, &mut dec_buf);
+        write_str("fd=");
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str(" ");
         if fd < 0x8000_0000_0000_0000 {
             syscall1(SYS_CLOSE, fd);
             write_str("PASSED\n");
@@ -443,7 +644,10 @@ pub extern "C" fn _start() -> ! {
         
         write_str("[MacroDomain]   SYS_ACCESS: ");
         let ret = syscall2(SYS_ACCESS, path.as_ptr() as u64, 0);
-        write_str(&format!("ret={}\n", ret));
+        len = u64_to_dec(ret, &mut dec_buf);
+        write_str("ret=");
+        write_str(unsafe { core::str::from_utf8_unchecked(&dec_buf[dec_buf.len() - len..]) });
+        write_str("\n");
     }
     
     write_str("[MacroDomain] ================================================\n");
@@ -460,25 +664,8 @@ pub extern "C" fn _start() -> ! {
 }
 
 #[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    write_str("[MacroDomain] PANIC: ");
-    let msg = format_args!("{}", info);
-    
-    let mut buf = [0u8; 256];
-    let len = if let Some(fmt) = msg.as_str() {
-        let bytes = fmt.as_bytes();
-        let copy_len = core::cmp::min(bytes.len(), buf.len());
-        buf[..copy_len].copy_from_slice(&bytes[..copy_len]);
-        copy_len
-    } else {
-        0
-    };
-    
-    unsafe {
-        syscall3(SYS_WRITE, STDERR_FILENO, buf.as_ptr() as u64, len as u64);
-    }
-    write_str("\n");
-    
+fn panic(_info: &PanicInfo) -> ! {
+    write_str("[MacroDomain] PANIC occurred\n");
     loop {
         unsafe {
             asm!("hlt", options(nomem, nostack));
