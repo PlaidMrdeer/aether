@@ -1,0 +1,15 @@
+/mnt/c/traework/aether/target/x86_64-unknown-none/release/deps/thiserror-62fdf703dbf2ff71.d: /home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/provide.rs /home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /mnt/c/traework/aether/target/x86_64-unknown-none/release/build/thiserror-578bd4860676fd34/out/private.rs
+
+/mnt/c/traework/aether/target/x86_64-unknown-none/release/deps/libthiserror-62fdf703dbf2ff71.rlib: /home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/provide.rs /home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /mnt/c/traework/aether/target/x86_64-unknown-none/release/build/thiserror-578bd4860676fd34/out/private.rs
+
+/mnt/c/traework/aether/target/x86_64-unknown-none/release/deps/libthiserror-62fdf703dbf2ff71.rmeta: /home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/provide.rs /home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /mnt/c/traework/aether/target/x86_64-unknown-none/release/build/thiserror-578bd4860676fd34/out/private.rs
+
+/home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs:
+/home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs:
+/home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs:
+/home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/provide.rs:
+/home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs:
+/home/ksk2kk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs:
+/mnt/c/traework/aether/target/x86_64-unknown-none/release/build/thiserror-578bd4860676fd34/out/private.rs:
+
+# env-dep:OUT_DIR=/mnt/c/traework/aether/target/x86_64-unknown-none/release/build/thiserror-578bd4860676fd34/out

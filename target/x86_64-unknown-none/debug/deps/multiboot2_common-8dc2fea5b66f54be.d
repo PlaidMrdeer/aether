@@ -1,0 +1,9 @@
+C:\traework\aether\target\x86_64-unknown-none\debug\deps\multiboot2_common-8dc2fea5b66f54be.d: C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\multiboot2-common-0.3.0\src\lib.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\multiboot2-common-0.3.0\src\test_utils.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\multiboot2-common-0.3.0\src\bytes_ref.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\multiboot2-common-0.3.0\src\iter.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\multiboot2-common-0.3.0\src\tag.rs
+
+C:\traework\aether\target\x86_64-unknown-none\debug\deps\libmultiboot2_common-8dc2fea5b66f54be.rmeta: C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\multiboot2-common-0.3.0\src\lib.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\multiboot2-common-0.3.0\src\test_utils.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\multiboot2-common-0.3.0\src\bytes_ref.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\multiboot2-common-0.3.0\src\iter.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\multiboot2-common-0.3.0\src\tag.rs
+
+C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\multiboot2-common-0.3.0\src\lib.rs:
+C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\multiboot2-common-0.3.0\src\test_utils.rs:
+C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\multiboot2-common-0.3.0\src\bytes_ref.rs:
+C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\multiboot2-common-0.3.0\src\iter.rs:
+C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\multiboot2-common-0.3.0\src\tag.rs:

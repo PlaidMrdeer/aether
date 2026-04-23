@@ -1,0 +1,11 @@
+C:\traework\aether\target\debug\deps\bitflags-c3f0c6e381dc2a9b.d: C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\lib.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\iter.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\parser.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\traits.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\public.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\internal.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\external.rs
+
+C:\traework\aether\target\debug\deps\libbitflags-c3f0c6e381dc2a9b.rmeta: C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\lib.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\iter.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\parser.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\traits.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\public.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\internal.rs C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\external.rs
+
+C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\lib.rs:
+C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\iter.rs:
+C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\parser.rs:
+C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\traits.rs:
+C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\public.rs:
+C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\internal.rs:
+C:\Users\ksk2kk\.cargo\registry\src\mirrors.aliyun.com-0671735e7cc7f5e7\bitflags-2.11.1\src\external.rs:
