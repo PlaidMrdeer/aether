@@ -20,6 +20,9 @@ pub fn init(virt_provider: &mut dyn VirtualizationProvider) {
     
     *ENCLAVE_MANAGER.lock() = Some(EnclaveManager::new());
 
+    crate::vm::fs::init_vfs();
+    crate::log_debug!("虚拟文件系统 (VFS) 已初始化");
+
     let specs = crate::memory::guest_image_specs();
     let mut registered_ids_vec: Vec<u32> = Vec::new();
 
@@ -140,6 +143,42 @@ fn load_guest_code(enclave_id: u32) {
     let mut manager_guard = get_manager();
     let manager = manager_guard.as_mut().unwrap();
     let enclave = manager.get_enclave_mut(enclave_id).expect("装载失败：找不到目标域");
+
+    if enclave.module_size > 0 {
+        let module_ptr = crate::memory::phys_to_virt(PhysAddr::new(enclave.module_phys));
+        
+        if enclave.module_size >= core::mem::size_of::<crate::vm::elf::Elf64Ehdr>() {
+            let elf_data = unsafe {
+                core::slice::from_raw_parts(module_ptr.as_ptr::<u8>(), enclave.module_size)
+            };
+            
+            if let Ok(ehdr) = crate::vm::elf::ElfLoader::validate_elf(elf_data) {
+                crate::log_info!("检测到 ELF 可执行文件，入口点: {:#x}", ehdr.entry_point());
+                
+                let elf_loader = crate::vm::elf::ElfLoader::new();
+                let load_offset = if enclave.realm_kind == crate::memory::RealmKind::Macro {
+                    0
+                } else {
+                    enclave.guest_entry_gpa
+                };
+                
+                match elf_loader.load_elf(elf_data, &mut enclave.ept, load_offset) {
+                    Ok(info) => {
+                        crate::log_info!("ELF 加载成功: 入口={:#x}, 范围={:#x}-{:#x}", 
+                            info.entry_point, info.lowest_vaddr, info.highest_vaddr);
+                        enclave.entry_rip = info.entry_point;
+                        let stack_pages = 4;
+                        let stack_base = info.highest_vaddr + 0x1000;
+                        enclave.entry_rsp = stack_base + stack_pages * 4096;
+                        return;
+                    }
+                    Err(e) => {
+                        crate::log_error!("ELF 加载失败: {}", e);
+                    }
+                }
+            }
+        }
+    }
 
     let base_gpa = enclave.guest_entry_gpa;
     let page_rwx = EptFlags::READ | EptFlags::WRITE | EptFlags::EXECUTE;

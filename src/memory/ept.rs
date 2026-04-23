@@ -56,6 +56,7 @@ impl EptPageTable {
     }
 }
 
+#[derive(Clone)]
 pub struct EptManager {
     pml4_frame: PhysFrame,
 }

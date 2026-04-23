@@ -1,0 +1,2 @@
+cargo:rerun-if-changed=C:\traework\aether\guests\init_domain/link.x
+cargo:rustc-link-arg=-TC:\traework\aether\guests\init_domain/link.x

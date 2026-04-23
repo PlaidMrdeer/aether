@@ -23,7 +23,7 @@ pub(super) fn setup_control_fields(ept_pointer: u64, vpid: u16, pml_pointer: Phy
         vmwrite(VmcsField::PinBasedVmExecControl as u64, pin_ctrls);
         vmwrite(VmcsField::VmxPreemptionTimerValue as u64, VMX_PREEMPTION_TIMER_RATE as u64);
 
-        let entry_ctrls = adjust_vmx_control(IA32_VMX_ENTRY_CTLS, 0);
+        let entry_ctrls = adjust_vmx_control(IA32_VMX_ENTRY_CTLS, (1 << 9));
         vmwrite(VmcsField::VmEntryControls as u64, entry_ctrls);
 
         let proc_ctrls = adjust_vmx_control(IA32_VMX_PROCBASED_CTLS, 0x80000000);
@@ -44,7 +44,7 @@ pub(super) fn setup_control_fields(ept_pointer: u64, vpid: u16, pml_pointer: Phy
         vmwrite(VmcsField::VirtualProcessorId as u64, vpid as u64);
         vmwrite(VmcsField::PmlAddress as u64, pml_pointer.as_u64());
 
-        vmwrite(VmcsField::ExceptionBitmap as u64, 0);
+        vmwrite(VmcsField::ExceptionBitmap as u64, 1 << 6);
         vmwrite(VmcsField::PageFaultErrorCodeMask as u64, 0);
         vmwrite(VmcsField::PageFaultErrorCodeMatch as u64, 0);
         vmwrite(VmcsField::VmExitMsrStoreCount as u64, 0);

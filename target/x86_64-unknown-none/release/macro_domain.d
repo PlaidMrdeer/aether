@@ -1,0 +1,1 @@
+C:\traework\aether\target\x86_64-unknown-none\release\macro_domain: C:\traework\aether\guests\macro_domain\build.rs C:\traework\aether\guests\macro_domain\guests/macro_domain/link.x C:\traework\aether\guests\macro_domain\src\main.rs
