@@ -1,0 +1,2 @@
+cargo:rustc-link-arg=-Tguests/macro_domain/link.x
+cargo:rerun-if-changed=guests/macro_domain/link.x

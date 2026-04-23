@@ -1,0 +1,1 @@
+{"rustc":8014779948396182559,"features":"","declared_features":"","target":0,"profile":0,"path":0,"deps":[[4550889743769589359,"build_script_build",false,11284697351933287752]],"local":[{"RerunIfChanged":{"output":"x86_64-unknown-none/release/build/init_domain-b98c1f92f2772c93/output","paths":["link.x"]}}],"rustflags":[],"config":0,"compile_kind":0}

@@ -1,0 +1,1 @@
+{"rustc":8014779948396182559,"features":"","declared_features":"","target":0,"profile":0,"path":0,"deps":[[3362918911628004381,"build_script_build",false,1185465284125375387]],"local":[{"RerunIfChanged":{"output":"x86_64-unknown-none/release/build/macro_domain-98410a516bcef5c6/output","paths":["guests/macro_domain/link.x"]}}],"rustflags":[],"config":0,"compile_kind":0}
